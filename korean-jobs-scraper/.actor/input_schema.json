@@ -1,0 +1,29 @@
+{
+  "title": "Korean Jobs Scraper input",
+  "type": "object",
+  "schemaVersion": 1,
+  "properties": {
+    "keyword": {
+      "title": "Search keyword",
+      "type": "string",
+      "description": "Keyword to search for (Korean or English), e.g. 마케팅, developer, 회계",
+      "editor": "textfield",
+      "prefill": "마케팅"
+    },
+    "sources": {
+      "title": "Job boards",
+      "type": "array",
+      "description": "Which Korean job boards to scrape",
+      "editor": "select",
+      "items": { "type": "string", "enum": ["saramin", "jobkorea", "wanted"], "enumTitles": ["Saramin (사람인)", "JobKorea (잡코리아)", "Wanted (원티드)"] },
+      "prefill": ["saramin", "jobkorea", "wanted"]
+    },
+    "max_items_per_source": {
+      "title": "Max results per source",
+      "type": "integer",
+      "description": "Maximum job postings per job board (1-100)",
+      "minimum": 1, "maximum": 100, "prefill": 20
+    }
+  },
+  "required": ["keyword"]
+}

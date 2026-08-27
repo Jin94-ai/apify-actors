@@ -1,0 +1,11 @@
+{
+  "actorSpecification": 1,
+  "name": "korean-jobs-scraper",
+  "title": "Korean Jobs Scraper (Saramin, JobKorea, Wanted)",
+  "description": "Scrape job postings from Korea's top job boards: Saramin, JobKorea, and Wanted. Search by keyword, get titles, companies, locations, conditions, and links.",
+  "version": "0.1",
+  "buildTag": "latest",
+  "input": "./input_schema.json",
+  "meta": { "templateId": "python-start" },
+  "dockerfile": "../Dockerfile"
+}

@@ -1,0 +1,11 @@
+{
+  "actorSpecification": 1,
+  "name": "danawa-price-scraper",
+  "title": "Danawa Price Scraper (Korean Price Comparison)",
+  "description": "Scrape product prices from Danawa, Korea's largest price-comparison site. Search any keyword and get product names, lowest prices (KRW), specs, and product links.",
+  "version": "0.1",
+  "buildTag": "latest",
+  "input": "./input_schema.json",
+  "meta": { "templateId": "python-start" },
+  "dockerfile": "../Dockerfile"
+}

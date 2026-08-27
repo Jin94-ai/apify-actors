@@ -1,0 +1,21 @@
+{
+  "title": "Danawa Price Scraper input",
+  "type": "object",
+  "schemaVersion": 1,
+  "properties": {
+    "keyword": {
+      "title": "Search keyword",
+      "type": "string",
+      "description": "Product keyword in Korean or English, e.g. 노트북, 에어컨, iphone",
+      "editor": "textfield",
+      "prefill": "노트북"
+    },
+    "max_items": {
+      "title": "Max products",
+      "type": "integer",
+      "description": "Maximum number of products to return (1-200)",
+      "minimum": 1, "maximum": 200, "prefill": 40
+    }
+  },
+  "required": ["keyword"]
+}
