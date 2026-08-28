@@ -102,7 +102,7 @@ async def main() -> None:
 
         items: list[dict] = []
         seen: set[str] = set()
-        async with client:
+        try:
             page = 1
             while len(items) < limit and page <= 6:
                 if page == 1:
@@ -122,5 +122,7 @@ async def main() -> None:
                     break
                 items.extend(fresh[: limit - len(items)])
                 page += 1
+        finally:
+            await client.aclose()
         await Actor.push_data(items)
         Actor.log.info(f"done — {len(items)} products for '{keyword}'")
