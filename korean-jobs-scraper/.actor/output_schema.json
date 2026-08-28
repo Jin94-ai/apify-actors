@@ -1,0 +1,13 @@
+{
+  "actorOutputSchemaVersion": 1,
+  "title": "Output of Korean Jobs Scraper",
+  "properties": {
+    "jobPostings": {
+      "type": "string",
+      "title": "Scraped job postings",
+      "description": "Dataset with job postings from Saramin, JobKorea and Wanted",
+      "resourceType": "dataset",
+      "template": "{{actorRun.defaultDatasetUrl}}"
+    }
+  }
+}
