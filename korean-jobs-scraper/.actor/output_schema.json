@@ -6,7 +6,6 @@
       "type": "string",
       "title": "Scraped job postings",
       "description": "Dataset with job postings from Saramin, JobKorea and Wanted",
-      "resourceType": "dataset",
       "template": "{{actorRun.defaultDatasetUrl}}"
     }
   }

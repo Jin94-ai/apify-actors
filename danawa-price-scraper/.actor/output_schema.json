@@ -6,7 +6,6 @@
       "type": "string",
       "title": "Scraped products",
       "description": "Dataset with product names, lowest KRW prices, specs and links",
-      "resourceType": "dataset",
       "template": "{{actorRun.defaultDatasetUrl}}"
     }
   }
