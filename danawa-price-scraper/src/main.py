@@ -50,6 +50,29 @@ def parse_page(html: str) -> list[dict]:
     return rows
 
 
+async def _make_client(proxy_url: str | None) -> httpx.AsyncClient:
+    return httpx.AsyncClient(headers=HEADERS, timeout=25, follow_redirects=True,
+                             proxy=proxy_url)
+
+
+async def _client_chain():
+    """Danawa blocks datacenter IPs (403) — escalate: direct → Apify proxy → KR residential."""
+    yield "direct", None
+    try:
+        cfg = await Actor.create_proxy_configuration()
+        if cfg:
+            yield "apify-proxy", await cfg.new_url()
+    except Exception as e:
+        Actor.log.warning(f"apify proxy unavailable: {e}")
+    try:
+        cfg = await Actor.create_proxy_configuration(groups=["RESIDENTIAL"],
+                                                     country_code="KR")
+        if cfg:
+            yield "residential-kr", await cfg.new_url()
+    except Exception as e:
+        Actor.log.warning(f"residential proxy unavailable: {e}")
+
+
 async def main() -> None:
     async with Actor:
         inp = await Actor.get_input() or {}
@@ -58,17 +81,39 @@ async def main() -> None:
             raise ValueError('Input "keyword" is required.')
         limit = max(1, min(int(inp.get("max_items") or 40), 200))
 
+        client = None
+        first_url = ("https://search.danawa.com/dsearch.php?"
+                     f"query={urllib.parse.quote(keyword)}&page=1")
+        async for label, proxy_url in _client_chain():
+            c = await _make_client(proxy_url)
+            try:
+                probe = await c.get(first_url)
+                if probe.status_code == 200:
+                    Actor.log.info(f"connection ok via {label}")
+                    client = c
+                    first_html = probe.text
+                    break
+                Actor.log.warning(f"{label}: HTTP {probe.status_code} — trying next route")
+            except Exception as e:
+                Actor.log.warning(f"{label}: {e} — trying next route")
+            await c.aclose()
+        if client is None:
+            raise RuntimeError("Danawa unreachable from all routes (direct/proxy/residential)")
+
         items: list[dict] = []
         seen: set[str] = set()
-        async with httpx.AsyncClient(headers=HEADERS, timeout=25,
-                                     follow_redirects=True) as client:
+        async with client:
             page = 1
             while len(items) < limit and page <= 6:
-                url = ("https://search.danawa.com/dsearch.php?"
-                       f"query={urllib.parse.quote(keyword)}&page={page}")
-                r = await client.get(url)
-                r.raise_for_status()
-                rows = parse_page(r.text)
+                if page == 1:
+                    html = first_html
+                else:
+                    url = ("https://search.danawa.com/dsearch.php?"
+                           f"query={urllib.parse.quote(keyword)}&page={page}")
+                    r = await client.get(url)
+                    r.raise_for_status()
+                    html = r.text
+                rows = parse_page(html)
                 fresh = [x for x in rows if (x["product_id"] or x["name"]) not in seen]
                 for x in fresh:
                     seen.add(x["product_id"] or x["name"])
