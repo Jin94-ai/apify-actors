@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import re
 import urllib.parse
 from datetime import datetime, timezone
@@ -60,6 +61,47 @@ async def scrape_saramin(client: httpx.AsyncClient, keyword: str, limit: int) ->
     return items
 
 
+def _jobkorea_objects(html: str) -> list[dict]:
+    """JobKorea embeds job data as escaped JSON in its React payload — extract each object."""
+    s = html.replace('\\"', '"')
+    out = []
+    for m in re.finditer(r'"legacyJobNo"', s):
+        # walk back to the object's opening brace
+        depth = 0
+        start = None
+        for j in range(m.start(), max(0, m.start() - 6000), -1):
+            ch = s[j]
+            if ch == "}":
+                depth += 1
+            elif ch == "{":
+                if depth == 0:
+                    start = j
+                    break
+                depth -= 1
+        if start is None:
+            continue
+        depth = 0
+        end = None
+        for j in range(start, min(len(s), start + 12000)):
+            ch = s[j]
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    end = j + 1
+                    break
+        if end is None:
+            continue
+        try:
+            obj = json.loads(s[start:end])
+        except Exception:
+            continue
+        if obj.get("legacyJobNo") and obj.get("title"):
+            out.append(obj)
+    return out
+
+
 async def scrape_jobkorea(client: httpx.AsyncClient, keyword: str, limit: int) -> list[dict]:
     items: list[dict] = []
     seen: set[str] = set()
@@ -69,30 +111,25 @@ async def scrape_jobkorea(client: httpx.AsyncClient, keyword: str, limit: int) -
                f"{urllib.parse.quote(keyword)}&Page_No={page}")
         r = await client.get(url)
         r.raise_for_status()
-        soup = BeautifulSoup(r.text, "html.parser")
         got_new = False
-        for a in soup.select('a[href*="/Recruit/GI_Read/"]'):
-            m = re.search(r"/Recruit/GI_Read/(\d+)", a.get("href", ""))
-            title = a.get_text(strip=True) or (a.get("title") or "")
-            if not m or m.group(1) in seen or len(title) < 4:
+        for o in _jobkorea_objects(r.text):
+            jid = str(o.get("legacyJobNo"))
+            if jid in seen:
                 continue
-            seen.add(m.group(1))
+            seen.add(jid)
             got_new = True
-            # company name: nearest preceding corp link when present
-            corp = None
-            card = a.find_parent(["article", "li", "div"])
-            if card:
-                c = card.select_one('a[href*="/Recruit/Co_Read/"], a[href*="corp"], .name, .corp-name')
-                if c:
-                    corp = c.get_text(strip=True) or None
+            conds = []
+            if o.get("isNewcomerJob"):
+                conds.append("신입 가능")
+            period = o.get("applicationPeriod") or {}
             items.append({
                 "source": "jobkorea",
-                "title": title,
-                "company": corp,
-                "conditions": [],
-                "deadline": None,
-                "url": f"https://www.jobkorea.co.kr/Recruit/GI_Read/{m.group(1)}",
-                "job_id": m.group(1),
+                "title": o.get("title"),
+                "company": o.get("companyName") or o.get("postingCompanyName"),
+                "conditions": conds,
+                "deadline": (period.get("end") or "")[:10] or None,
+                "url": f"https://www.jobkorea.co.kr/Recruit/GI_Read/{jid}",
+                "job_id": jid,
                 "scraped_at": _now(),
             })
             if len(items) >= limit:
