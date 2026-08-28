@@ -4,18 +4,78 @@
   "views": {
     "overview": {
       "title": "Job postings",
-      "transformation": { "fields": ["source", "title", "company", "conditions", "deadline", "url", "job_id", "scraped_at"] },
+      "transformation": {
+        "fields": [
+          "source",
+          "title",
+          "company",
+          "region",
+          "experience",
+          "education",
+          "employment_type",
+          "salary",
+          "conditions",
+          "deadline",
+          "url",
+          "job_id",
+          "scraped_at"
+        ]
+      },
       "display": {
         "component": "table",
         "properties": {
-          "source": { "label": "Board", "format": "text" },
-          "title": { "label": "Title", "format": "text" },
-          "company": { "label": "Company", "format": "text" },
-          "conditions": { "label": "Conditions", "format": "array" },
-          "deadline": { "label": "Deadline", "format": "text" },
-          "url": { "label": "Link", "format": "link" },
-          "job_id": { "label": "ID", "format": "text" },
-          "scraped_at": { "label": "Scraped at", "format": "date" }
+          "source": {
+            "label": "Board",
+            "format": "text"
+          },
+          "title": {
+            "label": "Title",
+            "format": "text"
+          },
+          "company": {
+            "label": "Company",
+            "format": "text"
+          },
+          "region": {
+            "label": "Region",
+            "format": "text"
+          },
+          "experience": {
+            "label": "Experience",
+            "format": "text"
+          },
+          "education": {
+            "label": "Education",
+            "format": "text"
+          },
+          "employment_type": {
+            "label": "Employment",
+            "format": "text"
+          },
+          "salary": {
+            "label": "Salary",
+            "format": "text"
+          },
+          "conditions": {
+            "label": "Conditions",
+            "format": "array"
+          },
+          "deadline": {
+            "label": "Deadline",
+            "format": "text"
+          },
+          "url": {
+            "label": "Link",
+            "format": "link"
+          },
+          "job_id": {
+            "label": "ID",
+            "format": "text"
+          },
+          "scraped_at": {
+            "label": "Scraped at",
+            "format": "date"
+          }
         }
       }
     }
