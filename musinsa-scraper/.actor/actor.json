@@ -1,0 +1,17 @@
+{
+  "actorSpecification": 1,
+  "name": "musinsa-scraper",
+  "title": "Musinsa Search Scraper (Korean Fashion)",
+  "description": "Scrape products from Musinsa, Korea's largest fashion platform. Search any keyword and get product names, brands, prices (KRW), sale rates, stock status, and links.",
+  "version": "0.1",
+  "buildTag": "latest",
+  "input": "./input_schema.json",
+  "meta": {
+    "templateId": "python-start"
+  },
+  "dockerfile": "../Dockerfile",
+  "storages": {
+    "dataset": "./dataset_schema.json"
+  },
+  "outputSchema": "./output_schema.json"
+}

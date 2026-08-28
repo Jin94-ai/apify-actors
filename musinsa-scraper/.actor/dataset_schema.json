@@ -1,0 +1,68 @@
+{
+  "actorSpecification": 1,
+  "fields": {},
+  "views": {
+    "overview": {
+      "title": "Products",
+      "transformation": {
+        "fields": [
+          "name",
+          "brand",
+          "final_price_krw",
+          "normal_price_krw",
+          "sale_rate",
+          "is_sold_out",
+          "gender",
+          "url",
+          "goods_no",
+          "scraped_at"
+        ]
+      },
+      "display": {
+        "component": "table",
+        "properties": {
+          "name": {
+            "label": "Product",
+            "format": "text"
+          },
+          "brand": {
+            "label": "Brand",
+            "format": "text"
+          },
+          "final_price_krw": {
+            "label": "Price (KRW)",
+            "format": "number"
+          },
+          "normal_price_krw": {
+            "label": "Normal price",
+            "format": "number"
+          },
+          "sale_rate": {
+            "label": "Sale %",
+            "format": "number"
+          },
+          "is_sold_out": {
+            "label": "Sold out",
+            "format": "boolean"
+          },
+          "gender": {
+            "label": "Gender",
+            "format": "text"
+          },
+          "url": {
+            "label": "Link",
+            "format": "link"
+          },
+          "goods_no": {
+            "label": "ID",
+            "format": "text"
+          },
+          "scraped_at": {
+            "label": "Scraped at",
+            "format": "date"
+          }
+        }
+      }
+    }
+  }
+}

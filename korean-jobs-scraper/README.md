@@ -85,6 +85,9 @@ Field coverage per board (honest — a field is `null` when the board does not e
 
 Found an issue or need a Korean site scraped? Open an issue on this Actor — responses usually within a day.
 
+
+**More Korean data Actors by the same developer:** [Danawa Price Scraper (Korean Price Comparison)](https://apify.com/ai94_jin/apify-actors-1)
+
 ---
 
 *Keywords: Korean job board scraper, Korea jobs API, 사람인 크롤링, 잡코리아 크롤링, 원티드 채용공고 수집, Saramin scraper, JobKorea scraper, Wanted Korea jobs, Korean recruitment data, 채용공고 스크래핑, South Korea hiring data, Korean job postings dataset*

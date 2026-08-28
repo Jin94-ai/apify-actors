@@ -1,0 +1,12 @@
+{
+  "actorOutputSchemaVersion": 1,
+  "title": "Output of Musinsa Search Scraper",
+  "properties": {
+    "products": {
+      "type": "string",
+      "title": "Scraped products",
+      "description": "Dataset with product names, brands, KRW prices, sale rates and links",
+      "template": "{{actorRun.defaultDatasetUrl}}"
+    }
+  }
+}
