@@ -60,3 +60,7 @@ One dataset item per product:
 - Price-drop alert-friendly output format
 
 Need another Korean e-commerce site (Coupang, Naver Shopping, Gmarket)? Open an issue on this Actor.
+
+---
+
+*Keywords: Danawa scraper, Korean price comparison, Korea product prices API, 다나와 크롤링, 다나와 가격 수집, 최저가 모니터링, Korean e-commerce data, Korea market research, KRW price tracking, 가격 비교 스크래핑, Korean electronics prices*

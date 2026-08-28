@@ -37,14 +37,19 @@ Use cases:
 
 ## Output
 
-One dataset item per job posting:
+One dataset item per job posting, with structured fields:
 
 ```json
 {
   "source": "saramin",
   "title": "AI 업무자동화 담당자 채용",
   "company": "(주)예시컴퍼니",
-  "conditions": ["서울 강남구", "신입·경력", "학력무관", "정규직"],
+  "region": "서울 강남구",
+  "experience": "신입·경력",
+  "education": "학력무관",
+  "employment_type": "정규직",
+  "salary": "3,000 만원",
+  "conditions": ["서울 강남구", "신입·경력", "학력무관", "정규직", "3,000 만원"],
   "deadline": "~ 09/30(수)",
   "url": "https://www.saramin.co.kr/zf_user/jobs/relay/view?rec_idx=12345678",
   "job_id": "12345678",
@@ -52,7 +57,15 @@ One dataset item per job posting:
 }
 ```
 
-Field coverage varies slightly per board (Wanted provides location and due date via its JSON API; JobKorea list pages expose title and link, with company name when available).
+Field coverage per board (honest — a field is `null` when the board does not expose it on list pages):
+
+| Field | Saramin | JobKorea | Wanted |
+|---|---|---|---|
+| title, company, url, job_id | ✅ | ✅ | ✅ |
+| deadline | ✅ | ✅ (ISO date) | ✅ when set (null = rolling) |
+| region | ✅ | — | ✅ |
+| experience / education / employment_type | ✅ | experience only ("신입 가능" flag) | — |
+| salary | when posted | — | — |
 
 ## Notes & fair use
 
@@ -67,3 +80,7 @@ Field coverage varies slightly per board (Wanted provides location and due date 
 - Albamon (알바몬) part-time board support
 
 Found an issue or need a Korean site scraped? Open an issue on this Actor — responses usually within a day.
+
+---
+
+*Keywords: Korean job board scraper, Korea jobs API, 사람인 크롤링, 잡코리아 크롤링, 원티드 채용공고 수집, Saramin scraper, JobKorea scraper, Wanted Korea jobs, Korean recruitment data, 채용공고 스크래핑, South Korea hiring data, Korean job postings dataset*

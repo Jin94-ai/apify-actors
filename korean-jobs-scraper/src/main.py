@@ -25,6 +25,28 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _split_conditions(conds: list[str]) -> dict:
+    """Saramin condition tags → structured fields (pattern-based, order-tolerant)."""
+    out = {"region": None, "experience": None, "education": None,
+           "employment_type": None, "salary": None}
+    for c in conds:
+        c = c.strip()
+        if not c:
+            continue
+        if out["salary"] is None and re.search(r"만원|억원|시급|월급|연봉", c):
+            out["salary"] = c
+        elif out["experience"] is None and re.search(r"경력|신입", c):
+            out["experience"] = c
+        elif out["education"] is None and re.search(r"학력|졸|석사|박사", c):
+            out["education"] = c
+        elif out["employment_type"] is None and re.search(
+                r"정규직|계약직|인턴|파견|프리랜서|아르바이트|위촉|기간제|병역특례", c):
+            out["employment_type"] = c
+        elif out["region"] is None:
+            out["region"] = c
+    return out
+
+
 async def scrape_saramin(client: httpx.AsyncClient, keyword: str, limit: int) -> list[dict]:
     items: list[dict] = []
     page = 1
@@ -49,6 +71,7 @@ async def scrape_saramin(client: httpx.AsyncClient, keyword: str, limit: int) ->
                 "source": "saramin",
                 "title": (a.get("title") or a.get_text(strip=True)),
                 "company": corp.get_text(strip=True) if corp else None,
+                **_split_conditions(conds),
                 "conditions": conds,
                 "deadline": date.get_text(strip=True) if date else None,
                 "url": f"https://www.saramin.co.kr/zf_user/jobs/relay/view?rec_idx={m.group(1)}",
@@ -126,6 +149,11 @@ async def scrape_jobkorea(client: httpx.AsyncClient, keyword: str, limit: int) -
                 "source": "jobkorea",
                 "title": o.get("title"),
                 "company": o.get("companyName") or o.get("postingCompanyName"),
+                "region": None,
+                "experience": "신입 가능" if o.get("isNewcomerJob") else None,
+                "education": None,
+                "employment_type": None,
+                "salary": None,
                 "conditions": conds,
                 "deadline": (period.get("end") or "")[:10] or None,
                 "url": f"https://www.jobkorea.co.kr/Recruit/GI_Read/{jid}",
@@ -158,6 +186,11 @@ async def scrape_wanted(client: httpx.AsyncClient, keyword: str, limit: int) -> 
                 "source": "wanted",
                 "title": j.get("position"),
                 "company": comp,
+                "region": addr,
+                "experience": None,
+                "education": None,
+                "employment_type": None,
+                "salary": None,
                 "conditions": [x for x in [addr] if x],
                 "deadline": j.get("due_time"),
                 "url": f"https://www.wanted.co.kr/wd/{j.get('id')}",
