@@ -1,0 +1,21 @@
+{
+  "actorSpecification": 1,
+  "fields": {},
+  "views": {
+    "overview": {
+      "title": "Products",
+      "transformation": { "fields": ["name", "lowest_price_krw", "specs", "url", "product_id", "scraped_at"] },
+      "display": {
+        "component": "table",
+        "properties": {
+          "name": { "label": "Product", "format": "text" },
+          "lowest_price_krw": { "label": "Lowest price (KRW)", "format": "number" },
+          "specs": { "label": "Specs", "format": "text" },
+          "url": { "label": "Link", "format": "link" },
+          "product_id": { "label": "ID", "format": "text" },
+          "scraped_at": { "label": "Scraped at", "format": "date" }
+        }
+      }
+    }
+  }
+}

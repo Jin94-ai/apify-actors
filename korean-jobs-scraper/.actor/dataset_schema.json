@@ -1,0 +1,23 @@
+{
+  "actorSpecification": 1,
+  "fields": {},
+  "views": {
+    "overview": {
+      "title": "Job postings",
+      "transformation": { "fields": ["source", "title", "company", "conditions", "deadline", "url", "job_id", "scraped_at"] },
+      "display": {
+        "component": "table",
+        "properties": {
+          "source": { "label": "Board", "format": "text" },
+          "title": { "label": "Title", "format": "text" },
+          "company": { "label": "Company", "format": "text" },
+          "conditions": { "label": "Conditions", "format": "array" },
+          "deadline": { "label": "Deadline", "format": "text" },
+          "url": { "label": "Link", "format": "link" },
+          "job_id": { "label": "ID", "format": "text" },
+          "scraped_at": { "label": "Scraped at", "format": "date" }
+        }
+      }
+    }
+  }
+}
