@@ -144,5 +144,9 @@ async def main() -> None:
                 page += 1
         finally:
             await client.aclose()
+        if not items:
+            Actor.log.warning(
+                f"0 products for '{keyword}' — if this keyword should have results, "
+                "Musinsa's embedded data layout may have changed (check __NEXT_DATA__ structure)")
         await Actor.push_data(items)
         Actor.log.info(f"done — {len(items)} products for '{keyword}'")

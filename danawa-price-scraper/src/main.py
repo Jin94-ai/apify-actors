@@ -22,6 +22,15 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+NO_RESULT_RE = re.compile(r"검색\s?결과가?\s?없습니다|결과가 없습니다")
+
+
+def _page_ok(html: str) -> bool:
+    """A usable Danawa page has product markup or an explicit no-results notice.
+    A 200 without either is a soft block / stub page and must not be accepted."""
+    return "prod_item" in html or bool(NO_RESULT_RE.search(html))
+
+
 def parse_page(html: str) -> list[dict]:
     soup = BeautifulSoup(html, "html.parser")
     rows: list[dict] = []
@@ -88,12 +97,16 @@ async def main() -> None:
             c = await _make_client(proxy_url)
             try:
                 probe = await c.get(first_url)
-                if probe.status_code == 200:
+                if probe.status_code == 200 and _page_ok(probe.text):
                     Actor.log.info(f"connection ok via {label}")
                     client = c
                     first_html = probe.text
                     break
-                Actor.log.warning(f"{label}: HTTP {probe.status_code} — trying next route")
+                if probe.status_code == 200:
+                    Actor.log.warning(
+                        f"{label}: HTTP 200 but no product markup (soft block?) — trying next route")
+                else:
+                    Actor.log.warning(f"{label}: HTTP {probe.status_code} — trying next route")
             except Exception as e:
                 Actor.log.warning(f"{label}: {e} — trying next route")
             await c.aclose()
@@ -124,5 +137,12 @@ async def main() -> None:
                 page += 1
         finally:
             await client.aclose()
+        if not items:
+            if NO_RESULT_RE.search(first_html):
+                Actor.log.info(f"Danawa reports no results for '{keyword}' — empty dataset is genuine")
+            else:
+                raise RuntimeError(
+                    f"0 products parsed for '{keyword}' although the page carried product markup — "
+                    "layout change or soft block. Failing loudly instead of returning an empty dataset.")
         await Actor.push_data(items)
         Actor.log.info(f"done — {len(items)} products for '{keyword}'")
