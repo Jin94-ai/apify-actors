@@ -47,7 +47,11 @@ def _split_conditions(conds: list[str]) -> dict:
     return out
 
 
-async def scrape_saramin(client: httpx.AsyncClient, keyword: str, limit: int) -> list[dict]:
+async def scrape_saramin(client: httpx.AsyncClient, keyword: str,
+                         limit: int) -> tuple[list[dict], str, str]:
+    """Saramin renders recommendation cards on its no-results page, so cards are only
+    trusted inside the search-results container (#recruit_info_list). A page with
+    div.not_found is a genuine empty result; anything else is an unrecognised layout."""
     items: list[dict] = []
     page = 1
     while len(items) < limit and page <= 5:
@@ -56,7 +60,16 @@ async def scrape_saramin(client: httpx.AsyncClient, keyword: str, limit: int) ->
         r = await client.get(url)
         r.raise_for_status()
         soup = BeautifulSoup(r.text, "html.parser")
-        cards = soup.select("div.item_recruit")
+        results_box = soup.select_one("div#recruit_info_list")
+        if results_box is None:
+            if page > 1:
+                break  # ran past the last page of a normal result set
+            if soup.select_one("div.not_found") is not None:
+                return [], "empty_confirmed", "Saramin reports no results for this keyword"
+            return [], "layout_unknown", (
+                "neither the results container (#recruit_info_list) nor the "
+                "no-results page (.not_found) was found — layout may have changed")
+        cards = results_box.select("div.item_recruit")
         if not cards:
             break
         for el in cards:
@@ -81,7 +94,7 @@ async def scrape_saramin(client: httpx.AsyncClient, keyword: str, limit: int) ->
             if len(items) >= limit:
                 break
         page += 1
-    return items
+    return items, ("ok" if items else "empty_confirmed"), ""
 
 
 def _jobkorea_objects(html: str) -> list[dict]:
@@ -125,7 +138,8 @@ def _jobkorea_objects(html: str) -> list[dict]:
     return out
 
 
-async def scrape_jobkorea(client: httpx.AsyncClient, keyword: str, limit: int) -> list[dict]:
+async def scrape_jobkorea(client: httpx.AsyncClient, keyword: str,
+                          limit: int) -> tuple[list[dict], str, str]:
     items: list[dict] = []
     seen: set[str] = set()
     page = 1
@@ -134,8 +148,15 @@ async def scrape_jobkorea(client: httpx.AsyncClient, keyword: str, limit: int) -
                f"{urllib.parse.quote(keyword)}&Page_No={page}")
         r = await client.get(url)
         r.raise_for_status()
+        objects = _jobkorea_objects(r.text)
+        if not objects and page == 1:
+            if "검색결과가 없습니다" in r.text:
+                return [], "empty_confirmed", "JobKorea reports no results for this keyword"
+            return [], "layout_unknown", (
+                "no job objects in the React payload and no no-results notice — "
+                "the embedded data layout may have changed")
         got_new = False
-        for o in _jobkorea_objects(r.text):
+        for o in objects:
             jid = str(o.get("legacyJobNo"))
             if jid in seen:
                 continue
@@ -165,10 +186,11 @@ async def scrape_jobkorea(client: httpx.AsyncClient, keyword: str, limit: int) -
         if not got_new:
             break
         page += 1
-    return items
+    return items, ("ok" if items else "empty_confirmed"), ""
 
 
-async def scrape_wanted(client: httpx.AsyncClient, keyword: str, limit: int) -> list[dict]:
+async def scrape_wanted(client: httpx.AsyncClient, keyword: str,
+                        limit: int) -> tuple[list[dict], str, str]:
     items: list[dict] = []
     offset = 0
     while len(items) < limit and offset <= 80:
@@ -178,6 +200,7 @@ async def scrape_wanted(client: httpx.AsyncClient, keyword: str, limit: int) -> 
         r.raise_for_status()
         data = r.json().get("data", [])
         if not data:
+            # the API answers with an explicit empty list, so this is a real empty result
             break
         for j in data:
             comp = (j.get("company") or {}).get("name")
@@ -200,7 +223,7 @@ async def scrape_wanted(client: httpx.AsyncClient, keyword: str, limit: int) -> 
             if len(items) >= limit:
                 break
         offset += 20
-    return items
+    return items, ("ok" if items else "empty_confirmed"), ""
 
 
 SCRAPERS = {"saramin": scrape_saramin, "jobkorea": scrape_jobkorea, "wanted": scrape_wanted}
@@ -218,18 +241,35 @@ async def main() -> None:
         async with httpx.AsyncClient(headers=HEADERS, timeout=25,
                                      follow_redirects=True) as client:
             total = 0
+            report: list[str] = []
+            confirmed_empty = 0
             for src in sources:
                 fn = SCRAPERS.get(src)
                 if not fn:
                     Actor.log.warning(f"unknown source skipped: {src}")
                     continue
                 try:
-                    rows = await fn(client, keyword, limit)
+                    rows, state, reason = await fn(client, keyword, limit)
                 except Exception as e:
                     Actor.log.error(f"{src} failed: {e}")
-                    rows = []
-                Actor.log.info(f"{src}: {len(rows)} postings")
+                    rows, state, reason = [], "failed", str(e)
+                note = f" ({reason})" if reason else ""
+                Actor.log.info(f"{src}: {len(rows)} postings [{state}]{note}")
+                report.append(f"{src}={len(rows)}/{state}")
+                if state == "empty_confirmed":
+                    confirmed_empty += 1
+                elif state == "layout_unknown":
+                    Actor.log.warning(f"{src}: results not adopted — {reason}")
                 if rows:
                     await Actor.push_data(rows)
                     total += len(rows)
-            Actor.log.info(f"done — total {total} postings for '{keyword}'")
+
+            Actor.log.info(f"done — total {total} postings for '{keyword}' "
+                           f"| {', '.join(report)}")
+            # Never let an empty dataset pass as success unless every source said so:
+            # a silent zero would look identical to a genuine no-match to the user.
+            if total == 0 and confirmed_empty < len(report):
+                raise RuntimeError(
+                    f"no postings collected for '{keyword}' and at least one source "
+                    f"could not confirm a genuine empty result ({', '.join(report)}) — "
+                    "failing loudly instead of returning an empty dataset")
