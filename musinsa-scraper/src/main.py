@@ -27,29 +27,63 @@ def _to_int(v) -> int | None:
     return int(digits) if digits else None
 
 
-def parse_page(html: str) -> list[dict]:
-    """Musinsa embeds the goods list in __NEXT_DATA__ — walk it for goods objects."""
+def _search_goods_query(data: dict):
+    """The one query that holds the search result list.
+
+    Scoped on purpose: a whole-tree walk for `goodsNo` would also pick up
+    recommendation / banner buckets that Musinsa ships alongside the results,
+    which is how a "no results" page can be served back as if it were a result set.
+    """
+    queries = (data.get("props", {}).get("pageProps", {})
+               .get("dehydratedState", {}).get("queries") or [])
+    for q in queries:
+        key = q.get("queryKey")
+        if (isinstance(key, list) and len(key) >= 3
+                and key[0] == "search" and key[1] == "goods"
+                and isinstance(key[2], dict) and "keyword" in key[2]):
+            return q
+    return None
+
+
+def parse_page(html: str) -> tuple[list[dict], str, str]:
+    """Return (rows, state, reason).
+
+    state: ok | empty_confirmed | layout_unknown
+    `layout_unknown` means we could not locate the result container — the page is
+    refused rather than reported as an empty result set.
+    """
     m = re.search(r'__NEXT_DATA__" type="application/json">(.*?)</script>', html, re.S)
     if not m:
-        return []
+        return [], "layout_unknown", "__NEXT_DATA__ block not found"
     try:
         data = json.loads(m.group(1))
-    except Exception:
-        return []
+    except Exception as e:
+        return [], "layout_unknown", f"__NEXT_DATA__ not valid JSON: {e}"
+
+    query = _search_goods_query(data)
+    if query is None:
+        return [], "layout_unknown", "search/goods query absent from __NEXT_DATA__"
+
+    pages = (query.get("state", {}).get("data", {}) or {}).get("pages")
+    if not isinstance(pages, list):
+        return [], "layout_unknown", "search/goods query carries no pages array"
+
     rows: list[dict] = []
+    total_count = None
+    for p in pages:
+        if not isinstance(p, dict):
+            continue
+        items = p.get("items")
+        if isinstance(items, list):
+            rows.extend(x for x in items if isinstance(x, dict) and x.get("goodsNo"))
+        pg = p.get("pagination")
+        if isinstance(pg, dict) and total_count is None:
+            total_count = pg.get("totalCount")
 
-    def walk(node):
-        if isinstance(node, dict):
-            if node.get("goodsNo") and node.get("goodsName"):
-                rows.append(node)
-            else:
-                for v in node.values():
-                    walk(v)
-        elif isinstance(node, list):
-            for v in node:
-                walk(v)
+    if not rows:
+        return [], "empty_confirmed", (
+            f"Musinsa returned an empty item list (totalCount={total_count})")
 
-    walk(data)
     out = []
     for g in rows:
         out.append({
@@ -66,7 +100,7 @@ def parse_page(html: str) -> list[dict]:
             "image": g.get("thumbnail") or None,
             "scraped_at": _now(),
         })
-    return out
+    return out, "ok", f"{len(out)} items (totalCount={total_count})"
 
 
 async def _make_client(proxy_url: str | None) -> httpx.AsyncClient:
@@ -125,6 +159,7 @@ async def main() -> None:
 
         items: list[dict] = []
         seen: set[str] = set()
+        first_state, first_reason = "", ""
         try:
             page = 1
             while len(items) < limit and page <= 6:
@@ -133,20 +168,32 @@ async def main() -> None:
                     r = await client.get(_search_url(keyword, page))
                     r.raise_for_status()
                     html = r.text
-                rows = parse_page(html)
+                rows, state, reason = parse_page(html)
+                if page == 1:
+                    first_state, first_reason = state, reason
+                Actor.log.info(f"page {page}: {len(rows)} rows [{state}] {reason}")
+                if state == "layout_unknown":
+                    # Refuse to adopt a page we cannot read — never report it as empty.
+                    break
                 fresh = [x for x in rows if x["goods_no"] not in seen]
                 for x in fresh:
                     seen.add(x["goods_no"])
-                Actor.log.info(f"page {page}: {len(rows)} rows ({len(fresh)} new)")
                 if not fresh:
                     break
                 items.extend(fresh[: limit - len(items)])
                 page += 1
         finally:
             await client.aclose()
+
         if not items:
-            Actor.log.warning(
-                f"0 products for '{keyword}' — if this keyword should have results, "
-                "Musinsa's embedded data layout may have changed (check __NEXT_DATA__ structure)")
+            if first_state == "empty_confirmed":
+                Actor.log.info(
+                    f"Musinsa reports no results for '{keyword}' — empty dataset is genuine "
+                    f"({first_reason})")
+            else:
+                raise RuntimeError(
+                    f"0 products for '{keyword}' and Musinsa did not confirm an empty result "
+                    f"[{first_state or 'unparsed'}: {first_reason}] — layout change or block. "
+                    "Failing loudly instead of returning an empty dataset.")
         await Actor.push_data(items)
-        Actor.log.info(f"done — {len(items)} products for '{keyword}'")
+        Actor.log.info(f"done — {len(items)} products for '{keyword}' [{first_state}]")

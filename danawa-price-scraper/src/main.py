@@ -31,10 +31,32 @@ def _page_ok(html: str) -> bool:
     return "prod_item" in html or bool(NO_RESULT_RE.search(html))
 
 
-def parse_page(html: str) -> list[dict]:
+RESULT_CONTAINERS = ("#productListArea", ".main_prodlist", "ul.product_list")
+
+
+def parse_page(html: str) -> tuple[list[dict], str, str]:
+    """Return (rows, state, reason).
+
+    state: ok | empty_confirmed | layout_unknown
+    Collection is scoped to the search-result container so that anything Danawa
+    renders outside it (recommendation / popular / ad blocks) can never be
+    reported back as a search result.
+    """
     soup = BeautifulSoup(html, "html.parser")
+    scope = None
+    for sel in RESULT_CONTAINERS:
+        scope = soup.select_one(sel)
+        if scope is not None:
+            break
+    if scope is None:
+        if NO_RESULT_RE.search(html):
+            return [], "empty_confirmed", "no-results notice, result container absent"
+        return [], "layout_unknown", (
+            "search-result container not found "
+            f"(tried {', '.join(RESULT_CONTAINERS)})")
+
     rows: list[dict] = []
-    for el in soup.select("li.prod_item"):
+    for el in scope.select("li.prod_item"):
         name_el = el.select_one("p.prod_name a")
         if not name_el:
             continue
@@ -56,7 +78,13 @@ def parse_page(html: str) -> list[dict]:
             "image": ("https:" + img_src) if img_src.startswith("//") else (img_src or None),
             "scraped_at": _now(),
         })
-    return rows
+    if not rows:
+        if NO_RESULT_RE.search(html):
+            return [], "empty_confirmed", "Danawa reports no results for this query"
+        return [], "layout_unknown", (
+            "result container present but held no parsable products "
+            "and no no-results notice")
+    return rows, "ok", f"{len(rows)} products in result container"
 
 
 async def _make_client(proxy_url: str | None) -> httpx.AsyncClient:
@@ -115,6 +143,7 @@ async def main() -> None:
 
         items: list[dict] = []
         seen: set[str] = set()
+        first_state, first_reason = "", ""
         try:
             page = 1
             while len(items) < limit and page <= 6:
@@ -126,11 +155,16 @@ async def main() -> None:
                     r = await client.get(url)
                     r.raise_for_status()
                     html = r.text
-                rows = parse_page(html)
+                rows, state, reason = parse_page(html)
+                if page == 1:
+                    first_state, first_reason = state, reason
+                Actor.log.info(f"page {page}: {len(rows)} rows [{state}] {reason}")
+                if state == "layout_unknown":
+                    # Refuse the page rather than pass it off as an empty result.
+                    break
                 fresh = [x for x in rows if (x["product_id"] or x["name"]) not in seen]
                 for x in fresh:
                     seen.add(x["product_id"] or x["name"])
-                Actor.log.info(f"page {page}: {len(rows)} rows ({len(fresh)} new)")
                 if not fresh:
                     break
                 items.extend(fresh[: limit - len(items)])
@@ -138,11 +172,14 @@ async def main() -> None:
         finally:
             await client.aclose()
         if not items:
-            if NO_RESULT_RE.search(first_html):
-                Actor.log.info(f"Danawa reports no results for '{keyword}' — empty dataset is genuine")
+            if first_state == "empty_confirmed":
+                Actor.log.info(
+                    f"Danawa reports no results for '{keyword}' — empty dataset is genuine "
+                    f"({first_reason})")
             else:
                 raise RuntimeError(
-                    f"0 products parsed for '{keyword}' although the page carried product markup — "
-                    "layout change or soft block. Failing loudly instead of returning an empty dataset.")
+                    f"0 products parsed for '{keyword}' and Danawa did not confirm an empty result "
+                    f"[{first_state or 'unparsed'}: {first_reason}] — layout change or soft block. "
+                    "Failing loudly instead of returning an empty dataset.")
         await Actor.push_data(items)
         Actor.log.info(f"done — {len(items)} products for '{keyword}'")
