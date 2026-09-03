@@ -198,7 +198,15 @@ async def scrape_wanted(client: httpx.AsyncClient, keyword: str,
                f"&query={urllib.parse.quote(keyword)}&limit=20&offset={offset}")
         r = await client.get(url)
         r.raise_for_status()
-        data = r.json().get("data", [])
+        payload = r.json()
+        data = payload.get("data") if isinstance(payload, dict) else None
+        if not isinstance(data, list):
+            if items:
+                break  # keep what earlier pages returned
+            return [], "layout_unknown", (
+                "wanted API response carries no 'data' array "
+                f"(top-level keys: {sorted(payload)[:6] if isinstance(payload, dict) else type(payload).__name__}) "
+                "— the API shape may have changed")
         if not data:
             # the API answers with an explicit empty list, so this is a real empty result
             break
@@ -223,7 +231,9 @@ async def scrape_wanted(client: httpx.AsyncClient, keyword: str,
             if len(items) >= limit:
                 break
         offset += 20
-    return items, ("ok" if items else "empty_confirmed"), ""
+    if items:
+        return items, "ok", f"{len(items)} postings from the wanted API"
+    return [], "empty_confirmed", "wanted API returned an explicit empty job list"
 
 
 SCRAPERS = {"saramin": scrape_saramin, "jobkorea": scrape_jobkorea, "wanted": scrape_wanted}
