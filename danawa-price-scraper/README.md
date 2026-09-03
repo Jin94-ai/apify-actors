@@ -38,6 +38,11 @@ One dataset item per product:
   "product_id": "12345678",
   "name": "APPLE 에어팟 프로3 MFHP4KH/A",
   "lowest_price_krw": 309620,
+  "category": "이어폰/헤드폰 > 블루투스이어폰",
+  "mall_count": 406,
+  "rating": 4.9,
+  "review_count": "999+",
+  "registered": "24.04. 등록",
   "specs": "커널형 / 블루투스 v5.3 / 노이즈컨트롤 / ...",
   "url": "https://prod.danawa.com/info/?pcode=12345678",
   "image": "https://img.danawa.com/prod_img/...",
@@ -45,7 +50,13 @@ One dataset item per product:
 }
 ```
 
-`lowest_price_krw` is the lowest listed price across Korean shops at scrape time (integer, Korean won).
+- `lowest_price_krw` — lowest listed price across Korean shops at scrape time (integer, Korean won).
+- `category` — Danawa's own category path for the product.
+- `mall_count` — how many shops list this product.
+- `rating` / `review_count` — Danawa product-review score and count. Both are `null` for products with no reviews yet (about 1 in 4 on a typical result page). `review_count` is a **string** because Danawa caps the displayed figure at `"999+"` — it is passed through as shown rather than guessed at.
+- `registered` — the product's Danawa listing month, as displayed.
+
+Fields Danawa does not put on its search-result pages are not reported: there is no brand element in the result markup, so no brand field is emitted.
 
 ## Notes & fair use
 

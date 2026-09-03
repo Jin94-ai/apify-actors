@@ -33,6 +33,20 @@ def _page_ok(html: str) -> bool:
 
 RESULT_CONTAINERS = ("#productListArea", ".main_prodlist", "ul.product_list")
 
+MALL_RE = re.compile(r"(\d[\d,]*)\s*몰")
+RATING_RE = re.compile(r"별점\s*([\d.]+)")
+REVIEW_RE = re.compile(r"리뷰수\s*\(\s*([\d,+]+)\s*\)")
+
+
+def _mall_count(el) -> int | None:
+    """Highest 'N몰' figure in the price list = how many sellers list this product.
+    Danawa splits the list into price groups (promo / certified / general); the
+    general group carries the full count, so max() is the product-level figure."""
+    counts = [int(m.group(1).replace(",", ""))
+              for sect in el.select("p.chk_sect")
+              for m in [MALL_RE.search(sect.get_text(" ", strip=True))] if m]
+    return max(counts) if counts else None
+
 
 def parse_page(html: str) -> tuple[list[dict], str, str]:
     """Return (rows, state, reason).
@@ -69,10 +83,26 @@ def parse_page(html: str) -> tuple[list[dict], str, str]:
         spec_el = el.select_one(".spec_list")
         img = el.select_one(".thumb_image img")
         img_src = (img.get("src") or img.get("data-src") or "") if img else ""
+        cat_el = el.select_one("dl.prod_category_location dd")
+        date_el = el.select_one("span.meta_item.mt_date")
+        meta_el = el.select_one("div.meta_item.mt_comment")
+        rating = review_count = None
+        if meta_el:
+            meta_txt = meta_el.get_text(" ", strip=True)
+            m = RATING_RE.search(meta_txt)
+            rating = float(m.group(1)) if m else None
+            m = REVIEW_RE.search(meta_txt)
+            # Danawa caps the displayed count at "999+" — kept as text, not coerced.
+            review_count = m.group(1).replace(",", "") if m else None
         rows.append({
             "product_id": pid or None,
             "name": name_el.get_text(strip=True),
             "lowest_price_krw": price,
+            "category": cat_el.get_text(" ", strip=True) if cat_el else None,
+            "mall_count": _mall_count(el),
+            "rating": rating,
+            "review_count": review_count,
+            "registered": date_el.get_text(strip=True) if date_el else None,
             "specs": spec_el.get_text(" ", strip=True) if spec_el else None,
             "url": name_el.get("href"),
             "image": ("https:" + img_src) if img_src.startswith("//") else (img_src or None),
